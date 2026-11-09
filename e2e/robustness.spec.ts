@@ -96,3 +96,15 @@ test('音のテスト: 和音が鳴り、音源と音声の状態が表示され
   await expect(page.getByTestId('sound-status')).toContainText('音源: ピアノ');
   await expect(page.getByTestId('sound-status')).toContainText('running');
 });
+
+test('音源のクレジット（作者・作品・出典・ライセンス）が表示され、LICENSES.txt が配信される', async ({ page, request }) => {
+  await page.goto('/');
+  const credit = page.getByTestId('credit');
+  await expect(credit).toContainText('Salamander Grand Piano V3');
+  await expect(credit).toContainText('Alexander Holm');
+  await expect(credit.getByRole('link', { name: 'CC BY 3.0' })).toHaveAttribute('href', 'https://creativecommons.org/licenses/by/3.0/');
+  await expect(credit.getByRole('link', { name: 'Salamander Grand Piano V3' })).toHaveAttribute('href', 'https://archive.org/details/SalamanderGrandPianoV3');
+  const res = await request.get('/LICENSES.txt');
+  expect(res.ok()).toBe(true);
+  expect(await res.text()).toContain('Creative Commons Attribution 3.0');
+});

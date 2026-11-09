@@ -1,0 +1,16 @@
+Jazz Ear Lab — 同梱物のライセンス / Third-party notices
+
+■ ピアノ音源 (samples/piano/*.mp3)
+  Work:    Salamander Grand Piano V3
+  Author:  Alexander Holm
+  Source:  https://archive.org/details/SalamanderGrandPianoV3
+  License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+           https://creativecommons.org/licenses/by/3.0/
+  Notes:   npm パッケージ @audio-samples/piano-mp3-velocity8 (MIT, Jan Forst) が配布する
+           MP3 変換版（ベロシティ 8 の層）を使用し、ファイル名のみ変更して同梱しています
+           （例: D#4v8.mp3 → Ds4.mp3）。音の内容は改変していません。
+           再生時に音程に合わせて再生速度を変えています。
+           作者による推奨・保証を示すものではありません。
+
+■ プログラム (assets/*.js) に含まれる主なライブラリ
+  React / React DOM (MIT), Tone.js (MIT), tonal (MIT), idb (ISC)

@@ -25,7 +25,11 @@ export const ja = {
   'audio.mode.piano': 'ピアノ',
   'audio.mode.synth': '簡易シンセ',
   'audio.mode.error': 'エラー',
-  'home.credit': 'ピアノ音源: Salamander Grand Piano V3 (Alexander Holm, CC BY 3.0)',
+  'home.credit.prefix': 'ピアノ音源:',
+  'home.credit.work': 'Salamander Grand Piano V3',
+  'home.credit.by': 'by Alexander Holm',
+  'home.credit.license': 'CC BY 3.0',
+  'home.credit.note': '（MP3 に変換したものを使用）',
 
   'category.title': 'カテゴリを選ぶ',
   'category.interval': 'インターバル',

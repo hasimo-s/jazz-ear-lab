@@ -32,7 +32,9 @@ export function Home({ onStart, onHistory, onReview }: { onStart: () => void; on
         <h1 className="text-3xl font-black tracking-tight text-brass-400">{t('app.title')}</h1>
         <p className="text-ink-300">{t('app.tagline')}</p>
         <p className="mt-4 text-sm text-ink-300" data-testid="home-overall">
-          {error
+          {attempts === null
+            ? '\u00a0' /* 読み込み中は空欄（「まだ回答履歴はありません」と誤表示しない） */
+            : error
             ? t('history.storageError')
             : overall && overall.attempts > 0
               ? t('home.overall', { attempts: overall.attempts, accuracy: pct(overall.accuracy) })
@@ -53,7 +55,14 @@ export function Home({ onStart, onHistory, onReview }: { onStart: () => void; on
           </div>
         )}
       </div>
-      <p className="pt-4 text-center text-xs text-ink-500">{t('home.credit')}</p>
+      {/* CC BY 3.0 の表示: 作者名・作品名・出典 URI・ライセンス名と URI・改変（形式変換）の有無 */}
+      <p className="pt-4 text-center text-xs text-ink-500" data-testid="credit">
+        {t('home.credit.prefix')}{' '}
+        <a className="underline" href="https://archive.org/details/SalamanderGrandPianoV3" target="_blank" rel="noopener noreferrer">{t('home.credit.work')}</a>{' '}
+        {t('home.credit.by')},{' '}
+        <a className="underline" href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener noreferrer">{t('home.credit.license')}</a>
+        {t('home.credit.note')}
+      </p>
     </Layout>
   );
 }

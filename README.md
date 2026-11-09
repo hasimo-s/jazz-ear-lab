@@ -68,4 +68,7 @@ Playwright のブラウザが未導入の環境では `npx playwright install ch
 
 ## クレジット
 
-ピアノ音源: Salamander Grand Piano V3 — Alexander Holm, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)（npm `@audio-samples/piano-mp3-velocity8` 経由で同梱）。
+ピアノ音源: [Salamander Grand Piano V3](https://archive.org/details/SalamanderGrandPianoV3) by Alexander Holm, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+npm パッケージ `@audio-samples/piano-mp3-velocity8`（パッケージは MIT）で配布されている MP3 変換版を使用し、そのうち A1〜C7 の22ファイルを `public/samples/piano/` に名前を変えてコピーしています。音源の内容（音そのもの）は改変していません。再生時に Tone.js が音程に合わせて再生速度を変えます。
+
+公開・再配布するときは、このクレジット（作者名・作品名・出典リンク・ライセンス名とリンク）を必ず残してください。アプリのホーム画面下部と、配布ファイル内の `LICENSES.txt` に同じ内容を表示しています。
