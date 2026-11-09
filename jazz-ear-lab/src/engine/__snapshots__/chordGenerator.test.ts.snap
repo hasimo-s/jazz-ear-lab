@@ -1,0 +1,21 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`コード問題: 再現性 > 既知シードのスナップショット 1`] = `
+{
+  "answer": "13",
+  "choices": [
+    "9",
+    "7b9",
+    "13",
+    "7alt",
+  ],
+  "notes": [
+    "A2",
+    "G3",
+    "C#4",
+    "E4",
+    "B4",
+    "F#5",
+  ],
+}
+`;
