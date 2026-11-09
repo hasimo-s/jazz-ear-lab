@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { t } from '../../i18n';
+import { player } from '../../audio/player';
 import { overallStats, weakItems } from '../../engine/stats';
 import { reviewSettings } from '../../engine/review';
 import type { QuizSettings } from '../../engine/types';
@@ -12,6 +14,16 @@ export function Home({ onStart, onHistory, onReview }: { onStart: () => void; on
   const overall = attempts ? overallStats(attempts) : null;
   const weak = attempts ? weakItems(attempts) : [];
   const review = reviewSettings(weak);
+  const [soundStatus, setSoundStatus] = useState<string | null>(null);
+
+  // C メジャーの和音を鳴らし、音源と AudioContext の状態を表示する（スマホで鳴らないときの切り分け用）
+  const soundTest = () => {
+    setSoundStatus(t('home.soundTestResult', { mode: t(`audio.mode.${player.mode}`), state: player.contextState }));
+    const events = [60, 64, 67].map((midi) => ({ midi, time: 0, duration: 1.2, velocity: 0.8 }));
+    player.play(events).finally(() => {
+      setSoundStatus(t('home.soundTestResult', { mode: t(`audio.mode.${player.mode}`), state: player.contextState }));
+    });
+  };
 
   return (
     <Layout title="">
@@ -33,6 +45,13 @@ export function Home({ onStart, onHistory, onReview }: { onStart: () => void; on
           <Button onClick={() => onReview(review)}>{t('home.review', { count: review.focus?.length ?? 0 })}</Button>
         )}
         <Button onClick={onHistory}>{t('home.history')}</Button>
+        <Button variant="ghost" onClick={soundTest} data-testid="sound-test">{t('home.soundTest')}</Button>
+        {soundStatus && (
+          <div className="rounded-xl bg-ink-900 p-3 text-xs text-ink-300" aria-live="polite" data-testid="sound-status">
+            <p className="font-bold text-ink-100">{soundStatus}</p>
+            <p className="mt-1">{t('home.soundTestHint')}</p>
+          </div>
+        )}
       </div>
       <p className="pt-4 text-center text-xs text-ink-500">{t('home.credit')}</p>
     </Layout>

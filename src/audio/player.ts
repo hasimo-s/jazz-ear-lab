@@ -24,6 +24,20 @@ declare global {
   }
 }
 
+/** 0.5秒の無音 WAV（8kHz・8bit）。iOS で HTML の audio 要素を鳴らして音声セッションを「再生」扱いにするために使う */
+function silentWavUrl(): string {
+  const n = 4000;
+  const buf = new ArrayBuffer(44 + n);
+  const v = new DataView(buf);
+  const w = (o: number, str: string) => [...str].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  w(36, 'data'); v.setUint32(40, n, true);
+  for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+
 class PianoPlayer {
   mode: AudioMode = 'idle';
   private instrument: Instrument | null = null;
@@ -31,6 +45,42 @@ class PianoPlayer {
   private listeners = new Set<(m: AudioMode) => void>();
   /** 再生要求の世代。stop() や新しい play() で進み、古い要求（音源読み込み待ち中のもの）を無効にする */
   private generation = 0;
+
+  private silentAudio: HTMLAudioElement | null = null;
+
+  /**
+   * ユーザーの操作（タップ・クリック・キー）の中で同期的に呼ぶ。
+   * - AudioContext を再開する（iOS は操作の直後でないと再開を許さない）
+   * - iOS の消音スイッチ（マナーモード）中でも鳴るよう、音声セッションを「再生」にする
+   *   （iOS 17 以降は navigator.audioSession、それ以前は無音の audio 要素を鳴らす）
+   */
+  unlock(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+      if (session) {
+        if (session.type !== 'playback') session.type = 'playback';
+      } else if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+        if (!this.silentAudio) {
+          const a = document.createElement('audio');
+          a.setAttribute('x-webkit-airplay', 'deny');
+          a.preload = 'auto';
+          a.loop = true;
+          a.src = silentWavUrl();
+          this.silentAudio = a;
+        }
+        if (this.silentAudio.paused) void this.silentAudio.play().catch(() => {});
+      }
+    } catch {
+      /* 対応していない環境では何もしない */
+    }
+    if (Tone.getContext().state !== 'running') void Tone.start().catch(() => {});
+  }
+
+  /** 診断用: AudioContext の状態（running / suspended / interrupted など） */
+  get contextState(): string {
+    return Tone.getContext().state;
+  }
 
   subscribe(fn: (m: AudioMode) => void): () => void {
     this.listeners.add(fn);
@@ -96,9 +146,9 @@ class PianoPlayer {
       if (log.length > 50) log.splice(0, log.length - 50);
     }
     await this.init();
-    // iOS Safari などで、バックグラウンド復帰や着信後に AudioContext が止まっていたら再開する
+    // バックグラウンド復帰や着信の後に止まっていたら再開を試みる（操作の外では iOS が応じないことがあるため待ちすぎない）
     if (Tone.getContext().state !== 'running') {
-      await Tone.start().catch(() => {});
+      await Promise.race([Tone.start().catch(() => {}), new Promise((r) => setTimeout(r, 300))]);
     }
     if (gen !== this.generation) return false;
     const inst = this.instrument;
@@ -130,3 +180,14 @@ class PianoPlayer {
 }
 
 export const player = new PianoPlayer();
+
+/**
+ * 画面上のすべての操作で unlock() を呼ぶ（個々のボタンに書き忘れても iOS で音が出るように）。
+ * capture で登録し、ボタン自身の処理より先に AudioContext を再開する。
+ */
+if (typeof window !== 'undefined') {
+  const onGesture = () => player.unlock();
+  for (const type of ['pointerdown', 'touchend', 'click', 'keydown'] as const) {
+    window.addEventListener(type, onGesture, { capture: true, passive: true });
+  }
+}

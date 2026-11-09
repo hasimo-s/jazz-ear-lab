@@ -88,3 +88,11 @@ test('カテゴリは矢印キーで選べる', async ({ page }) => {
   await page.keyboard.press('ArrowLeft');
   await expect(page.getByTestId('category-progression')).toHaveAttribute('aria-checked', 'true');
 });
+
+test('音のテスト: 和音が鳴り、音源と音声の状態が表示される', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('sound-test').click();
+  await expect.poll(() => page.evaluate(() => window.__jelPlaybackLog?.at(-1))).toEqual([60, 64, 67]);
+  await expect(page.getByTestId('sound-status')).toContainText('音源: ピアノ');
+  await expect(page.getByTestId('sound-status')).toContainText('running');
+});
