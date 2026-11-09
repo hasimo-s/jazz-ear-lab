@@ -22,6 +22,14 @@ function db() {
       store.createIndex('byCategory', 'category');
       store.createIndex('byItemKey', 'itemKey');
     },
+    // ブラウザが接続を切った場合（Safari の "Connection ... lost" など）は次回に開き直す
+    terminated() {
+      dbPromise = null;
+    },
+  }).catch((e: unknown) => {
+    // 一時的な失敗をページを閉じるまで引きずらないよう、失敗した接続は捨てる
+    dbPromise = null;
+    throw e;
   });
   return dbPromise;
 }

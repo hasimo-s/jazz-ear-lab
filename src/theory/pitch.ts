@@ -67,3 +67,8 @@ export function midiOf(noteName: string): number {
   if (m === null || m === undefined) throw new Error(`invalid note ${noteName}`);
   return m;
 }
+
+/** 譜面ではあまり使わない綴り（C♭・F♭・E♯・B♯）。ダブル臨時記号は accidentalCount で別に扱う */
+export function isAwkward(noteName: string): boolean {
+  return /^(Cb|Fb|E#|B#)/.test(noteName);
+}

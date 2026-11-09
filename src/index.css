@@ -5,7 +5,7 @@
   --color-ink-900: #12151c;
   --color-ink-800: #1b2029;
   --color-ink-700: #2a313d;
-  --color-ink-500: #6b7587;
+  --color-ink-500: #909bad; /* 4.5:1 以上（ink-700 背景でも 4.66） */
   --color-ink-300: #aab3c2;
   --color-ink-100: #e8ecf2;
   --color-brass-400: #f0b44c;

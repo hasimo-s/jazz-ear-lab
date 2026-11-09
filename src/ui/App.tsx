@@ -62,6 +62,7 @@ export function App() {
         <Result
           summary={screen.summary}
           onAgain={() => startQuiz(screen.summary.config.settings, screen.summary.config.length)}
+          onNormal={() => startQuiz({ ...screen.summary.config.settings, focus: undefined }, screen.summary.config.length)}
           onHome={() => setScreen({ name: 'home' })}
           onHistory={() => setScreen({ name: 'history' })}
         />

@@ -5,40 +5,29 @@ import { CHORD_POOLS } from './chordConfig';
 import { PROGRESSION_POOLS } from './progressionConfig';
 import { isProgressionId, type ProgressionId } from '../theory/progressions';
 import type { WeakItem } from './stats';
-import type { Difficulty, QuizSettings } from './types';
-
-const ORDER: Difficulty[] = ['beginner', 'intermediate', 'advanced'];
-
-/** 対象をすべて含む最も易しい難易度（誤答の選択肢もその母集団から出る） */
-function easiestContaining<T>(pools: Record<Difficulty, readonly T[]>, ids: T[]): Difficulty | undefined {
-  return ORDER.find((d) => ids.every((id) => pools[d].includes(id)));
-}
+import type { QuizSettings } from './types';
 
 /**
- * 苦手項目から復習用の出題設定を作る。最も苦手な項目のカテゴリを対象にする。対象がなければ null。
- * コード・進行は難易度ごとに母集団が分かれているため、最も苦手なコードと同じ難易度に入るものだけを集める。
+ * 苦手項目から復習用の出題設定を作る。対象がなければ null。
+ * 最も苦手な項目と同じカテゴリ・同じ難易度（その項目を間違えたときの難易度）の苦手項目をまとめて復習する。
  */
 export function reviewSettings(weak: readonly WeakItem[]): QuizSettings | null {
   const first = weak[0];
   if (!first) return null;
-  if (first.category === 'interval') {
-    const focus = weak.filter((w) => w.category === 'interval' && isIntervalId(w.answerId)).map((w) => w.answerId as IntervalId);
-    const difficulty = easiestContaining(INTERVAL_POOLS, focus);
-    return difficulty ? { category: 'interval', difficulty, direction: 'both', focus } : null;
+  const same = weak.filter((w) => w.category === first.category && w.difficulty === first.difficulty);
+  const { difficulty } = first;
+  switch (first.category) {
+    case 'interval': {
+      const focus = same.map((w) => w.answerId).filter(isIntervalId).filter((id) => INTERVAL_POOLS[difficulty].includes(id)) as IntervalId[];
+      return focus.length ? { category: 'interval', difficulty, direction: 'both', focus } : null;
+    }
+    case 'chord': {
+      const focus = same.map((w) => w.answerId).filter(isChordQualityId).filter((id) => CHORD_POOLS[difficulty].includes(id)) as ChordQualityId[];
+      return focus.length ? { category: 'chord', difficulty, focus } : null;
+    }
+    case 'progression': {
+      const focus = same.map((w) => w.answerId).filter(isProgressionId).filter((id) => PROGRESSION_POOLS[difficulty].includes(id)) as ProgressionId[];
+      return focus.length ? { category: 'progression', difficulty, focus } : null;
+    }
   }
-  if (first.category === 'chord' && isChordQualityId(first.answerId)) {
-    const difficulty = easiestContaining(CHORD_POOLS, [first.answerId])!;
-    const focus = weak
-      .filter((w) => w.category === 'chord' && isChordQualityId(w.answerId) && CHORD_POOLS[difficulty].includes(w.answerId))
-      .map((w) => w.answerId as ChordQualityId);
-    return { category: 'chord', difficulty, focus };
-  }
-  if (first.category === 'progression' && isProgressionId(first.answerId)) {
-    const difficulty = easiestContaining(PROGRESSION_POOLS, [first.answerId])!;
-    const focus = weak
-      .filter((w) => w.category === 'progression' && isProgressionId(w.answerId) && PROGRESSION_POOLS[difficulty].includes(w.answerId))
-      .map((w) => w.answerId as ProgressionId);
-    return { category: 'progression', difficulty, focus };
-  }
-  return null;
 }

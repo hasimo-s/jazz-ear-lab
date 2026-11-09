@@ -1,8 +1,9 @@
 import { createRng, type Rng } from '../theory/rng';
 import { getInterval, type IntervalDef, type IntervalId } from '../theory/intervals';
-import { accidentalCount, spellingCandidates, transposeChecked } from '../theory/pitch';
+import { accidentalCount, isAwkward, spellingCandidates, transposeChecked } from '../theory/pitch';
 import type { Difficulty, Direction, IntervalQuestion, IntervalSettings, NoteEvent } from './types';
 import { validateIntervalQuestion } from './intervalValidation';
+import { pickAnswer } from './focus';
 import {
   CHOICE_COUNT, INTERVAL_POOLS, INTERVAL_REGISTERS, INTERVAL_TIMING, NEAR_DISTRACTORS, NEAR_RANGE, intervalLabelKey,
 } from './intervalConfig';
@@ -27,14 +28,19 @@ function pickDistractors(rng: Rng, answer: IntervalDef, difficulty: Difficulty):
  * ルートのジャズ的な綴り × 音程の綴り候補を順に試し、ダブルシャープ/フラットを避ける。
  */
 export function spellInterval(firstMidi: number, secondMidi: number, def: IntervalDef, direction: Direction): [string, string] {
-  for (const first of spellingCandidates(firstMidi)) {
-    for (const iv of def.spellings) {
-      const tonalIv = direction === 'ascending' ? iv : `-${iv}`;
-      const second = transposeChecked(first, tonalIv, secondMidi);
-      if (accidentalCount(second) <= 1) return [first, second];
-    }
-  }
-  throw new Error(`no clean spelling for ${def.id} from midi ${firstMidi} (${direction})`);
+  // 候補（1音目の綴り × 音程の綴り）に点数を付け、最も自然なものを選ぶ:
+  // ダブル臨時記号は不可。C♭・F♭・E♯・B♯ を避け、音程名どおりの綴り（先頭候補）を優先する
+  let best: { notes: [string, string]; score: number } | null = null;
+  spellingCandidates(firstMidi).forEach((first, rootIdx) => {
+    def.spellings.forEach((iv, ivIdx) => {
+      const second = transposeChecked(first, direction === 'ascending' ? iv : `-${iv}`, secondMidi);
+      if (accidentalCount(second) > 1) return;
+      const score = (isAwkward(first) ? 10 : 0) + (isAwkward(second) ? 10 : 0) + ivIdx * 5 + rootIdx;
+      if (!best || score < best.score) best = { notes: [first, second], score };
+    });
+  });
+  if (!best) throw new Error(`no clean spelling for ${def.id} from midi ${firstMidi} (${direction})`);
+  return (best as { notes: [string, string] }).notes;
 }
 
 export function buildIntervalPlayback(firstMidi: number, secondMidi: number): NoteEvent[] {
@@ -53,8 +59,7 @@ export function generateIntervalQuestion(settings: IntervalSettings, seed: numbe
   const rng = createRng(seed);
   const { difficulty } = settings;
   const poolIds = INTERVAL_POOLS[difficulty];
-  const answerPool = settings.focus?.filter((id) => poolIds.includes(id)) ?? [];
-  const answer = getInterval(rng.pick(answerPool.length > 0 ? answerPool : poolIds));
+  const answer = getInterval(pickAnswer(rng, poolIds, settings.focus));
 
   const direction: Direction =
     settings.direction === 'both' ? (rng.next() < 0.5 ? 'ascending' : 'descending') : settings.direction;

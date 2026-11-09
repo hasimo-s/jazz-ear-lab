@@ -99,11 +99,17 @@ describe('generateIntervalQuestion: 曖昧さの排除（大量シード検証�
     }
   });
 
-  it('focus 指定時は正解が focus に限定される', () => {
-    for (let seed = 0; seed < 200; seed++) {
+  it('focus 指定時は正解の約7割が focus から、残りは通常の母集団から出る', () => {
+    let inFocus = 0;
+    const others = new Set<string>();
+    for (let seed = 0; seed < 1000; seed++) {
       const q = generateIntervalQuestion({ ...settings('intermediate'), focus: ['TT', 'm6'] }, seed);
-      expect(['TT', 'm6']).toContain(q.answerId);
+      if (q.answerId === 'TT' || q.answerId === 'm6') inFocus++;
+      else others.add(q.answerId);
     }
+    expect(inFocus / 1000).toBeGreaterThan(0.65);
+    expect(inFocus / 1000).toBeLessThan(0.85);
+    expect(others.size).toBe(10); // focus 以外の10音程もすべて出る
   });
 });
 

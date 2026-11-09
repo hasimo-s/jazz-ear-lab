@@ -32,6 +32,7 @@ function Bar({ value }: { value: number }) {
 export function History({ onBack, onReview }: { onBack: () => void; onReview: (s: QuizSettings) => void }) {
   const { attempts, error, reload } = useAttempts();
   const [confirming, setConfirming] = useState(false);
+  const [clearFailed, setClearFailed] = useState(false);
   const back = <Button variant="ghost" onClick={onBack}>← {t('nav.back')}</Button>;
   if (!attempts) return <Layout title={t('history.title')} left={back}><p>…</p></Layout>;
 
@@ -47,9 +48,14 @@ export function History({ onBack, onReview }: { onBack: () => void; onReview: (s
 
   // confirm() は埋め込み表示などで使えないことがあるため、画面内で確認する
   const clear = async () => {
-    await clearAttempts().catch(() => {});
-    setConfirming(false);
-    reload();
+    try {
+      await clearAttempts();
+      setClearFailed(false);
+      setConfirming(false);
+      reload();
+    } catch {
+      setClearFailed(true); // 確認画面は開いたままにして、失敗を知らせる
+    }
   };
 
   return (
@@ -84,7 +90,9 @@ export function History({ onBack, onReview }: { onBack: () => void; onReview: (s
             <ul className="mb-3 flex flex-wrap gap-2">
               {weak.map((w) => (
                 <li key={w.key} className="rounded-full border border-ng-400/60 px-3 py-1 text-sm">
-                  {t(choiceLabelKey(w.category, w.answerId))} <span className="tabular-nums text-ink-300">{pct(w.accuracy)}</span>
+                  {t(choiceLabelKey(w.category, w.answerId))}
+                  <span className="text-ink-300"> · {t(`category.${w.category}`)}{t(`difficulty.${w.difficulty}`)}</span>
+                  <span className="tabular-nums text-ink-300"> {pct(w.accuracy)}</span>
                 </li>
               ))}
             </ul>
@@ -123,7 +131,10 @@ export function History({ onBack, onReview }: { onBack: () => void; onReview: (s
             <ul className="flex flex-col gap-1 text-sm" data-testid="history-recent">
               {recent.map((a) => (
                 <li key={a.id} className="flex items-center gap-2 rounded-lg bg-ink-900 px-3 py-2">
-                  <span className={a.correct ? 'text-ok-400' : 'text-ng-400'} aria-label={a.correct ? t('quiz.correct') : t('quiz.incorrect')}>{a.correct ? '✓' : '✗'}</span>
+                  <span className={a.correct ? 'text-ok-400' : 'text-ng-400'}>
+                    <span aria-hidden>{a.correct ? '✓' : '✗'}</span>
+                    <span className="sr-only">{a.correct ? t('quiz.correct') : t('quiz.incorrect')}</span>
+                  </span>
                   <span className="flex-1">{t(choiceLabelKey(a.category, a.answerId))}<span className="text-ink-500"> · {a.category === 'interval' ? t(`direction.${a.itemKey.split(':')[2]}`) : t(`category.${a.category}`)}</span></span>
                   <span className="tabular-nums text-ink-500">{secs(a.responseMs)}s · ▶{a.playCount}</span>
                 </li>
@@ -134,6 +145,7 @@ export function History({ onBack, onReview }: { onBack: () => void; onReview: (s
           {confirming ? (
             <div role="alertdialog" aria-label={t('history.clear')} className="flex flex-col gap-3 rounded-xl border border-ng-400/60 p-4">
               <p className="text-sm">{t('history.clearConfirm')}</p>
+              {clearFailed && <p role="alert" className="text-sm text-ng-400">{t('history.clearFailed')}</p>}
               <div className="grid grid-cols-2 gap-3">
                 <Button onClick={() => setConfirming(false)}>{t('history.cancel')}</Button>
                 <Button className="border-ng-400 text-ng-400" onClick={clear} data-testid="clear-confirm">{t('history.clearYes')}</Button>

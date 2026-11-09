@@ -40,17 +40,31 @@ describe('stats', () => {
 
 import { reviewSettings } from './review';
 describe('reviewSettings', () => {
-  it('苦手音程を含む最も易しい難易度を選ぶ', () => {
-    const w = (answerId: string) => ({ key: '', attempts: 2, correct: 0, accuracy: 0, avgResponseMs: 0, avgPlayCount: 0, category: 'interval' as const, answerId });
-    expect(reviewSettings([w('M3')])?.difficulty).toBe('beginner');
-    expect(reviewSettings([w('M3'), w('TT')])?.difficulty).toBe('intermediate');
-    expect(reviewSettings([w('s9')])).toMatchObject({ difficulty: 'advanced', focus: ['s9'] });
-    expect(reviewSettings([])).toBeNull();
+  const w = (category: 'interval' | 'chord' | 'progression', difficulty: 'beginner' | 'intermediate' | 'advanced', answerId: string, accuracy = 0) =>
+    ({ key: '', attempts: 3, correct: 0, accuracy, avgResponseMs: 0, avgPlayCount: 0, category, difficulty, answerId });
+
+  it('苦手を間違えたときの難易度で復習する（中級の 7 は中級で）', () => {
+    // レビューで見つかった不具合: 中級の 7・m7・maj7 が、初級の 7 だけの復習になっていた
+    expect(reviewSettings([w('chord', 'intermediate', '7', 0), w('chord', 'intermediate', 'm7', 0.33), w('chord', 'intermediate', 'maj7', 0.33)]))
+      .toEqual({ category: 'chord', difficulty: 'intermediate', focus: ['7', 'm7', 'maj7'] });
   });
-  it('コードの苦手は最も苦手なコードの難易度に合わせる', () => {
-    const w = (answerId: string) => ({ key: '', attempts: 2, correct: 0, accuracy: 0, avgResponseMs: 0, avgPlayCount: 0, category: 'chord' as const, answerId });
-    expect(reviewSettings([w('m7b5'), w('dim7'), w('aug')])).toEqual({ category: 'chord', difficulty: 'intermediate', focus: ['m7b5', 'dim7'] });
-    // 7 は初級・中級の両方にある → 初級
-    expect(reviewSettings([w('7')])).toEqual({ category: 'chord', difficulty: 'beginner', focus: ['7'] });
+  it('上級の進行の苦手は上級で復習する', () => {
+    expect(reviewSettings([w('progression', 'advanced', 'ii-V-I'), w('progression', 'advanced', 'IV-iv-I', 0.3)]))
+      .toEqual({ category: 'progression', difficulty: 'advanced', focus: ['ii-V-I', 'IV-iv-I'] });
+  });
+  it('最も苦手な項目と同じカテゴリ・難易度のものだけをまとめる', () => {
+    expect(reviewSettings([w('interval', 'advanced', 's9'), w('chord', 'beginner', 'aug', 0.2), w('interval', 'beginner', 'M3', 0.5)]))
+      .toEqual({ category: 'interval', difficulty: 'advanced', direction: 'both', focus: ['s9'] });
+  });
+  it('苦手がなければ null', () => expect(reviewSettings([])).toBeNull());
+});
+
+describe('weakItems: 難易度別に集計', () => {
+  it('同じコードでも難易度が違えば別項目', () => {
+    const data = [
+      rec('7', false, { difficulty: 'beginner' }), rec('7', false, { difficulty: 'beginner' }),
+      rec('7', true, { difficulty: 'intermediate' }), rec('7', true, { difficulty: 'intermediate' }),
+    ];
+    expect(weakItems(data).map((x) => `${x.difficulty}:${x.answerId}`)).toEqual(['beginner:7']);
   });
 });

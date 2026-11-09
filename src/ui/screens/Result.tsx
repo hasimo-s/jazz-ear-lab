@@ -6,7 +6,8 @@ import { Layout } from '../components/Layout';
 import { pct, secs } from '../format';
 import type { SessionSummary } from './Quiz';
 
-export function Result({ summary, onAgain, onHome, onHistory }: { summary: SessionSummary; onAgain: () => void; onHome: () => void; onHistory: () => void }) {
+export function Result({ summary, onAgain, onNormal, onHome, onHistory }: { summary: SessionSummary; onAgain: () => void; onNormal: () => void; onHome: () => void; onHistory: () => void }) {
+  const isReview = (summary.config.settings.focus?.length ?? 0) > 0;
   const s = overallStats(summary.attempts);
   return (
     <Layout title={`${t('result.title')} — ${t(`category.${summary.config.settings.category}`)}`}>
@@ -27,7 +28,8 @@ export function Result({ summary, onAgain, onHome, onHistory }: { summary: Sessi
         ))}
       </ol>
       <div className="flex flex-col gap-3">
-        <Button variant="primary" onClick={onAgain}>{t('result.again')}</Button>
+        <Button variant="primary" onClick={onAgain}>{isReview ? t('result.againReview') : t('result.again')}</Button>
+        {isReview && <Button onClick={onNormal} data-testid="result-normal">{t('result.normal')}</Button>}
         <Button onClick={onHistory}>{t('result.history')}</Button>
         <Button variant="ghost" onClick={onHome}>{t('result.home')}</Button>
       </div>

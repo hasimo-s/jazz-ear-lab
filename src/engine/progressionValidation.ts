@@ -1,6 +1,6 @@
 import { Note } from 'tonal';
 import { getChordQuality, isValidVoicingOf } from '../theory/chords';
-import { accidentalCount, pitchClass } from '../theory/pitch';
+import { accidentalCount, isAwkward, pitchClass } from '../theory/pitch';
 import {
   getProgression, isProgressionId, slotChords, SLOTS_PER_PROGRESSION, type ProgressionDef, type ProgressionId,
 } from '../theory/progressions';
@@ -81,8 +81,13 @@ export function validateProgressionQuestion(q: ProgressionQuestion): string[] {
 
   // 6. 綴り
   if (accidentalCount(q.payload.tonic) > 1 || Note.chroma(q.payload.tonic) !== pitchClass(params.tonicMidi)) errors.push('tonic spelling');
+  if (q.payload.symbols.length !== def.chords.length) errors.push('symbol count mismatch');
   q.payload.symbols.forEach((s, i) => {
     const root = /^[A-G][#b]*/.exec(s)?.[0] ?? '';
+    const d = def.chords[i];
+    // コードの種類（接尾辞）も定義と一致すること
+    if (d && s !== `${root}${getChordQuality(d.quality).symbol}`) errors.push(`symbol ${s} does not match ${d.quality}`);
+    if (isAwkward(root)) errors.push(`symbol ${s}: awkward root spelling`);
     if (accidentalCount(root) > 1) errors.push(`symbol ${s}: double accidental`);
     const ch = q.payload.chords[i];
     if (ch && Note.chroma(root) !== pitchClass(ch.bass)) errors.push(`symbol ${s} != bass`);

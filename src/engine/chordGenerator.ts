@@ -4,7 +4,7 @@ import {
   DEGREES, getChordQuality, isTension, isValidVoicingOf, pitchClassSet,
   type ChordQualityDef, type ChordQualityId, type Degree,
 } from '../theory/chords';
-import { accidentalCount, pitchClass, spellingCandidates } from '../theory/pitch';
+import { accidentalCount, isAwkward, pitchClass, spellingCandidates } from '../theory/pitch';
 import {
   CHORD_BASS_RANGE, CHORD_NEAR_DISTRACTORS, CHORD_POOLS, CHORD_STYLE, CHORD_TIMING, CHORD_UPPER_FLOOR,
   chordLabelKey, type VoicingStyle,
@@ -12,6 +12,7 @@ import {
 import { CHOICE_COUNT } from './intervalConfig';
 import type { ChordQuestion, ChordSettings, ChordVoice, NoteEvent } from './types';
 import { voicingProblems, validateChordQuestion } from './chordValidation';
+import { pickAnswer } from './focus';
 
 export interface VoicingParams {
   bassMidi: number;
@@ -50,23 +51,31 @@ export function voiceChord(qualityId: ChordQualityId, p: VoicingParams): { midi:
 
 /** ルートの綴りを決め、各音に音名を付ける。ダブル臨時記号を避ける */
 export function spellChord(bassMidi: number, voices: { midi: number; degree: Degree }[]): { rootPc: string; voices: ChordVoice[] } {
-  for (const rootName of spellingCandidates(bassMidi)) {
+  // ルートの綴り候補ごとに全音を綴り、C♭・F♭・E♯・B♯ や予備綴りの使用が最も少ないものを選ぶ
+  let best: { rootPc: string; voices: ChordVoice[]; score: number } | null = null;
+  spellingCandidates(bassMidi).forEach((rootName, rootIdx) => {
     const rootPc = Note.pitchClass(rootName);
     const out: ChordVoice[] = [];
-    let ok = true;
+    let score = rootIdx;
     for (const v of voices) {
-      const pcName = DEGREES[v.degree].spellings
-        .map((iv) => Note.pitchClass(Note.transpose(rootPc, iv)))
-        .find((n) => n && accidentalCount(n) <= 1);
-      if (!pcName) { ok = false; break; }
+      const options = DEGREES[v.degree].spellings
+        .map((iv, i) => ({ name: Note.pitchClass(Note.transpose(rootPc, iv)), i }))
+        .filter((o) => o.name && accidentalCount(o.name) <= 1)
+        .map((o) => ({ ...o, cost: (isAwkward(o.name) ? 10 : 0) + o.i * 5 }))
+        .sort((a, b) => a.cost - b.cost);
+      const pick = options[0];
+      if (!pick) return;
       const base = Math.floor(v.midi / 12) - 1;
-      const octave = [base, base - 1, base + 1].find((o) => Note.midi(`${pcName}${o}`) === v.midi);
-      if (octave === undefined) { ok = false; break; }
-      out.push({ midi: v.midi, degree: v.degree, note: `${pcName}${octave}` });
+      const octave = [base, base - 1, base + 1].find((o) => Note.midi(`${pick.name}${o}`) === v.midi);
+      if (octave === undefined) return;
+      score += pick.cost;
+      out.push({ midi: v.midi, degree: v.degree, note: `${pick.name}${octave}` });
     }
-    if (ok) return { rootPc, voices: out };
-  }
-  throw new Error(`no clean spelling for chord on midi ${bassMidi}`);
+    if (!best || score < best.score) best = { rootPc, voices: out, score };
+  });
+  if (!best) throw new Error(`no clean spelling for chord on midi ${bassMidi}`);
+  const { rootPc, voices: spelled } = best as { rootPc: string; voices: ChordVoice[] };
+  return { rootPc, voices: spelled };
 }
 
 export function blockPlayback(midis: readonly number[]): NoteEvent[] {
@@ -120,8 +129,7 @@ export function generateChordQuestion(settings: ChordSettings, seed: number): Ch
   const rng = createRng(seed);
   const { difficulty } = settings;
   const pool = CHORD_POOLS[difficulty];
-  const focus = settings.focus?.filter((id) => pool.includes(id)) ?? [];
-  const answer = getChordQuality(rng.pick(focus.length > 0 ? focus : pool));
+  const answer = getChordQuality(pickAnswer(rng, pool, settings.focus));
   const style = CHORD_STYLE[difficulty];
   const range = CHORD_BASS_RANGE[difficulty];
 

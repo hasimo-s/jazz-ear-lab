@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { t } from '../../i18n';
 import type { Category, Difficulty, DirectionSetting, QuizSettings } from '../../engine/types';
 import { DEFAULT_SESSION_LENGTH } from '../../engine/session';
@@ -43,10 +43,22 @@ export function CategorySelect({ onBack, onStart }: { onBack: () => void; onStar
     onStart(settings, length);
   };
 
+  // ラジオグループのキーボード操作: 矢印キーで選択を移し、Tab では選択中の1つだけに止まる
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const onGroupKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!dir) return;
+    e.preventDefault();
+    const ids = CATEGORIES.filter((c) => c.available).map((c) => c.id);
+    const nextId = ids[(ids.indexOf(category) + dir + ids.length) % ids.length]!;
+    setCategory(nextId);
+    buttons.current[CATEGORIES.findIndex((c) => c.id === nextId)]?.focus();
+  };
+
   return (
     <Layout title={t('category.title')} left={<Button variant="ghost" onClick={onBack}>← {t('nav.back')}</Button>}>
-      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={t('category.title')}>
-        {CATEGORIES.map(({ id, available }) => {
+      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={t('category.title')} onKeyDown={onGroupKey}>
+        {CATEGORIES.map(({ id, available }, i) => {
           const selected = available && id === category;
           return (
             <button
@@ -54,6 +66,8 @@ export function CategorySelect({ onBack, onStart }: { onBack: () => void; onStar
               type="button"
               role="radio"
               aria-checked={selected}
+              tabIndex={selected ? 0 : -1}
+              ref={(el) => { buttons.current[i] = el; }}
               disabled={!available}
               onClick={() => available && setCategory(id)}
               data-testid={`category-${id}`}

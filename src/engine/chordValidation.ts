@@ -1,4 +1,4 @@
-import { getChordQuality, isChordQualityId, isValidVoicingOf, pitchClassSet } from '../theory/chords';
+import { DEGREES, getChordQuality, isChordQualityId, isValidVoicingOf, pitchClassSet } from '../theory/chords';
 import { accidentalCount, midiOf, pitchClass } from '../theory/pitch';
 import { CHORD_BASS_RANGE, CHORD_POOLS, CHORD_TOP_LIMIT, LOW_INTERVAL_RULES } from './chordConfig';
 import { CHOICE_COUNT } from './intervalConfig';
@@ -68,6 +68,8 @@ export function validateChordQuestion(q: ChordQuestion): string[] {
   for (const v of q.payload.voices) {
     const def = getChordQuality(q.payload.qualityId);
     if (!def.degrees.includes(v.degree)) errors.push(`degree ${v.degree} not in ${def.id}`);
+    // 解説に出す度数が、ベースからの実際の距離と一致すること
+    if (pitchClass(v.midi - bass) !== DEGREES[v.degree].semitones % 12) errors.push(`voice ${v.note} is not the ${v.degree} of the bass`);
     try {
       if (midiOf(v.note) !== v.midi) errors.push(`spelling ${v.note} != midi ${v.midi}`);
       if (accidentalCount(v.note) > 1) errors.push(`double accidental ${v.note}`);

@@ -45,6 +45,18 @@ describe('進行の表記', () => {
   it('E♭ キーの ♭VIm7–♭II7 は Bm7–E7 と表記する', () => {
     expect(spellProgression('bvi-bII7-I', 63).symbols).toEqual(['Bm7', 'E7', 'Ebmaj7']);
   });
+  it('G♭/F♯ キーの ♭VIm7–♭II7–I は、置き換えのない F♯ で表記する', () => {
+    expect(spellProgression('bvi-bII7-I', 66)).toEqual({ tonic: 'F#', symbols: ['Dm7', 'G7', 'F#maj7'] });
+  });
+  it('短調は C♯m・F♯m・G♯m と表記する', () => {
+    expect(spellProgression('minor-ii-V-i', 61).tonic).toBe('C#');
+    expect(spellProgression('minor-ii-V-i', 66).tonic).toBe('F#');
+    expect(spellProgression('minor-ii-V-i', 68).tonic).toBe('G#');
+    expect(spellProgression('minor-ii-V-i', 70).tonic).toBe('Bb');
+  });
+  it('長調は D♭・A♭・E♭・B♭ と表記する', () => {
+    for (const [m, k] of [[61, 'Db'], [68, 'Ab'], [63, 'Eb'], [70, 'Bb']] as const) expect(spellProgression('ii-V-I', m).tonic).toBe(k);
+  });
   it('C キーの II–V–I', () => {
     expect(spellProgression('ii-V-I', 60)).toEqual({ tonic: 'C', symbols: ['Dm7', 'G7', 'Cmaj7'] });
   });
@@ -120,10 +132,11 @@ describe('進行問題: 生成と検証（大量シード）', () => {
     }
   });
 
-  it('focus 指定時は正解が focus に限定される', () => {
-    for (let s = 0; s < 100; s++) {
-      expect(generateProgressionQuestion({ ...settings('advanced'), focus: ['backdoor'] }, s).answerId).toBe('backdoor');
-    }
+  it('focus 指定時も、苦手以外の進行が混ざる', () => {
+    const answers = Array.from({ length: 300 }, (_, s) => generateProgressionQuestion({ ...settings('advanced'), focus: ['backdoor'] }, s).answerId);
+    const ratio = answers.filter((a) => a === 'backdoor').length / answers.length;
+    expect(ratio).toBeGreaterThan(0.65);
+    expect(new Set(answers).size).toBe(PROGRESSION_POOLS.advanced.length);
   });
 });
 

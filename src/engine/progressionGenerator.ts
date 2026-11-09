@@ -1,7 +1,7 @@
 import { Note } from 'tonal';
 import { createRng } from '../theory/rng';
 import { DEGREES, getChordQuality, type Degree } from '../theory/chords';
-import { accidentalCount, pitchClass, spellingCandidates } from '../theory/pitch';
+import { accidentalCount, isAwkward, pitchClass, spellingCandidates } from '../theory/pitch';
 import { getProgression, SLOTS_PER_PROGRESSION, type ProgressionId } from '../theory/progressions';
 import {
   PROGRESSION_GAP, PROGRESSION_PARAMS, PROGRESSION_POOLS, PROGRESSION_RANGES, PROGRESSION_VELOCITY, progressionLabelKey,
@@ -10,6 +10,7 @@ import { voicingProblems } from './chordValidation';
 import { CHOICE_COUNT } from './intervalConfig';
 import type { NoteEvent, ProgressionParams, ProgressionQuestion, ProgressionSettings, RenderedChord } from './types';
 import { validateProgressionQuestion } from './progressionValidation';
+import { pickAnswer } from './focus';
 
 /** 上部構造に使う度数（ルートを除く。省略可能な完全5度は省いて3声にそろえる） */
 function upperDegrees(qualityId: Parameters<typeof getChordQuality>[0]): Degree[] {
@@ -107,30 +108,48 @@ export function bassLinePlayback(chords: readonly RenderedChord[], params: Progr
   return progressionPlayback(chords.map((c) => ({ ...c, upper: [] })), params);
 }
 
-const AWKWARD = new Set(['Cb', 'Fb', 'E#', 'B#']);
+/** 調号として一般的な主音の綴り（ピッチクラス 0..11）。短調は C♯m・F♯m・G♯m を使う */
+const KEY_NAMES: Record<'major' | 'minor', readonly string[]> = {
+  major: ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'],
+  minor: ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'],
+};
 
-/** トニックの綴り（ダブル臨時記号を避ける）と各和音のコードシンボル */
+/** 調として実際に使われる綴り（これ以外の主音は選ばない。例: D♯ メジャー） */
+const STANDARD_KEYS: Record<'major' | 'minor', ReadonlySet<string>> = {
+  major: new Set(['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb']),
+  minor: new Set(['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'D', 'G', 'C', 'F', 'Bb', 'Eb']),
+};
+
+/** トニックの綴り（調号として一般的なもの）と各和音のコードシンボル */
 export function spellProgression(id: ProgressionId, tonicMidi: number): { tonic: string; symbols: string[] } {
   const def = getProgression(id);
-  for (const cand of spellingCandidates(tonicMidi)) {
-    const tonic = Note.pitchClass(cand);
+  const preferred = KEY_NAMES[def.mode][pitchClass(tonicMidi)]!;
+  const candidates = [preferred, ...spellingCandidates(tonicMidi).map((n) => Note.pitchClass(n)).filter((n) => n !== preferred)];
+  // 各和音のルートを主音から綴り、C♭・F♭・E♯・B♯・ダブル臨時記号は異名同音に置き換える。
+  // 置き換えが少ない主音の綴りを選ぶ（同点なら調号として一般的な方）
+  let best: { tonic: string; roots: string[]; subs: number } | null = null;
+  for (const tonic of candidates) {
+    if (!STANDARD_KEYS[def.mode].has(tonic)) continue;
+    let subs = 0;
     const roots = def.chords.map((ch) => {
       const r = Note.pitchClass(Note.transpose(tonic, ch.rootInterval));
-      // ダブル臨時記号や C♭・F♭・E♯・B♯ は、譜面で一般的な異名同音に置き換える
-      return accidentalCount(r) > 1 || AWKWARD.has(r) ? Note.enharmonic(r) : r;
+      if (accidentalCount(r) > 1 || isAwkward(r)) { subs++; return Note.enharmonic(r); }
+      return r;
     });
-    if (roots.every((r) => accidentalCount(r) <= 1)) {
-      return { tonic, symbols: def.chords.map((ch, i) => `${roots[i]}${getChordQuality(ch.quality).symbol}`) };
-    }
+    if (roots.some((r) => accidentalCount(r) > 1 || isAwkward(r))) continue;
+    // 異名同音への置き換え1回ごとに1点、一般的な方の調名でなければ1点
+    const cost = subs + (tonic === preferred ? 0 : 1);
+    if (!best || cost < best.subs) best = { tonic, roots, subs: cost };
   }
-  throw new Error(`no clean spelling for ${id} in ${tonicMidi}`);
+  if (!best) throw new Error(`no clean spelling for ${id} in ${tonicMidi}`);
+  const { tonic, roots } = best as { tonic: string; roots: string[] };
+  return { tonic, symbols: def.chords.map((ch, i) => `${roots[i]}${getChordQuality(ch.quality).symbol}`) };
 }
 
 export function generateProgressionQuestion(settings: ProgressionSettings, seed: number): ProgressionQuestion {
   const rng = createRng(seed);
   const pool = PROGRESSION_POOLS[settings.difficulty];
-  const focus = settings.focus?.filter((id) => pool.includes(id)) ?? [];
-  const answer = rng.pick(focus.length > 0 ? focus : pool);
+  const answer = pickAnswer(rng, pool, settings.focus);
   const P = PROGRESSION_PARAMS;
   const params: ProgressionParams = {
     tonicMidi: 60 + rng.int(0, 11),

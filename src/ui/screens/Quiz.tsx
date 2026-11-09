@@ -4,6 +4,7 @@ import { questionAt } from '../../engine/session';
 import { grade } from '../../engine/grading';
 import type { GradeResult, NoteEvent } from '../../engine/types';
 import { uiFor } from '../categoryUi';
+import { choiceLabelKey } from '../../engine/labels';
 import type { AttemptRecord } from '../../engine/stats';
 import { addAttempt } from '../../storage/db';
 import { player, type AudioMode } from '../../audio/player';
@@ -36,9 +37,12 @@ export function Quiz({ config, onQuit, onFinish }: { config: QuizConfig; onQuit:
   const sessionId = useRef(`${sessionSeed}-${Date.now()}`);
   const audioMode = useAudioMode();
   const nextRef = useRef<HTMLButtonElement>(null);
+  const playRef = useRef<HTMLButtonElement>(null);
 
   const playEvents = useCallback((events: readonly NoteEvent[]) => {
-    player.play(events).then(() => setAudioError(false), () => setAudioError(true));
+    const p = player.play(events);
+    p.then(() => setAudioError(false), () => setAudioError(true));
+    return p;
   }, []);
 
   const playQuestion = useCallback(() => {
@@ -47,15 +51,30 @@ export function Quiz({ config, onQuit, onFinish }: { config: QuizConfig; onQuit:
   }, [q, result, playEvents]);
 
   // 開始時・次の問題へ進んだときに自動再生（いずれもユーザー操作の直後）
+  // 回答時間は「問題の音が鳴り始めた時点」から測る（初回の音源読み込み時間を含めない）
   useEffect(() => {
     shownAt.current = performance.now();
     setPlayCount(1);
-    playEvents(q.playback);
-    return () => player.stop();
+    let active = true;
+    playEvents(q.playback).then((started) => {
+      if (active && started) shownAt.current = performance.now();
+    }, () => {});
+    // 前の問題の「次へ」ボタンが消えるとフォーカスが失われるので、再生ボタンへ移す
+    playRef.current?.focus({ preventScroll: true });
+    return () => {
+      active = false;
+      player.stop();
+    };
   }, [q, playEvents]);
 
+  // 連打・同時押しで1問に複数回答が記録されたり、問題が飛んだりしないよう、
+  // 再描画を待たずに参照できる ref で「この問題は回答済み／次へ進行済み」を管理する
+  const answeredIndex = useRef(-1);
+  const advancedIndex = useRef(-1);
+
   const answer = useCallback((choiceId: string) => {
-    if (result) return;
+    if (result || answeredIndex.current === index) return;
+    answeredIndex.current = index;
     const r = grade(q, choiceId);
     setResult(r);
     const rec: AttemptRecord = {
@@ -80,14 +99,15 @@ export function Quiz({ config, onQuit, onFinish }: { config: QuizConfig; onQuit:
 
   const isLast = index + 1 >= length;
   const next = useCallback(() => {
-    if (!result) return;
+    if (!result || advancedIndex.current === index) return;
+    advancedIndex.current = index;
     if (isLast) {
       onFinish({ config, attempts });
       return;
     }
     setResult(null);
     setIndex((i) => i + 1);
-  }, [result, isLast, onFinish, config, attempts]);
+  }, [result, index, isLast, onFinish, config, attempts]);
 
   const playAnswer = useCallback(() => playEvents(q.playback), [q, playEvents]);
   const playMine = useCallback(() => {
@@ -102,8 +122,15 @@ export function Quiz({ config, onQuit, onFinish }: { config: QuizConfig; onQuit:
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // キーを押しっぱなしにしたときの自動リピートは無視する（再生の連打・誤操作の防止）
+      if (e.repeat) {
+        if (e.key === ' ') e.preventDefault();
+        return;
+      }
       const target = e.target as HTMLElement;
       const onButton = target.tagName === 'BUTTON';
+      // ▶ 以外のボタンにフォーカスがあるときの Space は、そのボタンの操作に任せる
+      if (e.key === ' ' && onButton && target !== playRef.current) return;
       if (e.key === ' ' || e.key.toLowerCase() === 'r') {
         e.preventDefault();
         playQuestion();
@@ -117,7 +144,9 @@ export function Quiz({ config, onQuit, onFinish }: { config: QuizConfig; onQuit:
       } else if (e.key.toLowerCase() === 's' && result) {
         playMine();
       } else if ((e.key === 'Enter' || e.key.toLowerCase() === 'n') && result) {
-        if (onButton && e.key === 'Enter') return; // ボタン自身のクリックに任せる
+        // 「正解の音を再生」などの操作ボタン上の Enter はそのボタンに任せる。
+        // ▶ や「次へ」の上（回答直後でフォーカス移動が間に合わない場合を含む）では次の問題へ進む
+        if (onButton && e.key === 'Enter' && target !== playRef.current && target !== nextRef.current) return;
         e.preventDefault();
         next();
       }
@@ -134,6 +163,12 @@ export function Quiz({ config, onQuit, onFinish }: { config: QuizConfig; onQuit:
       left={<Button variant="ghost" onClick={onQuit}>✕ {t('nav.quit')}</Button>}
       right={<span className="text-sm tabular-nums text-ink-300" data-testid="progress">{t('quiz.progress', { current: index + 1, total: length })}</span>}
     >
+      {settings.focus && settings.focus.length > 0 && (
+        <p className="rounded-xl border border-brass-500/50 bg-ink-900 px-3 py-2 text-sm" data-testid="review-badge">
+          <span className="font-bold text-brass-400">{t('quiz.reviewBadge', { items: settings.focus.map((id) => t(choiceLabelKey(settings.category, id))).join('、') })}</span>
+          <span className="block text-xs text-ink-300">{t('quiz.reviewNote')}</span>
+        </p>
+      )}
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-800" aria-hidden>
         <div className="h-full bg-brass-500 transition-all" style={{ width: `${((index + (result ? 1 : 0)) / length) * 100}%` }} />
       </div>
@@ -141,6 +176,7 @@ export function Quiz({ config, onQuit, onFinish }: { config: QuizConfig; onQuit:
       <section className="flex flex-col items-center gap-2 py-4">
         <button
           type="button"
+          ref={playRef}
           onClick={playQuestion}
           aria-label={`${t('quiz.replay')} (Space)`}
           data-testid="play"
@@ -192,7 +228,11 @@ export function Quiz({ config, onQuit, onFinish }: { config: QuizConfig; onQuit:
         })}
       </div>
 
-      <div aria-live="assertive" className="flex flex-col gap-3">
+      {/* 読み上げは正誤と正解だけを短く伝える */}
+      <p aria-live="polite" className="sr-only" data-testid="sr-feedback">
+        {result ? (result.correct ? t('quiz.correct') : `${t('quiz.incorrect')}。${t('quiz.answerIs', { answer: answerLabel })}`) : ''}
+      </p>
+      <div className="flex flex-col gap-3">
         {result && (
           <>
             <p data-testid="feedback" data-correct={result.correct}

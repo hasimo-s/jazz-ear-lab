@@ -60,13 +60,17 @@ export function overallStats(attempts: readonly AttemptRecord[]): AccuracyStat {
   return summarize('all', attempts);
 }
 
-/** itemKey の先頭2要素（'interval:M3:ascending' → 'interval:M3'）で方向を無視して集計するためのキー */
-export function answerKey(a: AttemptRecord): string {
-  return `${a.category}:${a.answerId}`;
+/**
+ * 苦手判定の集計キー。同じ項目でも難易度が違えば選択肢の母集団が違う（＝別の課題）なので分けて数える。
+ * 例: 'chord|intermediate|7'。進行IDに ':' や '-' が含まれても壊れないよう '|' で区切る。
+ */
+export function weakKey(a: AttemptRecord): string {
+  return `${a.category}|${a.difficulty}|${a.answerId}`;
 }
 
 export interface WeakItem extends AccuracyStat {
   category: Category;
+  difficulty: Difficulty;
   answerId: string;
 }
 
@@ -79,11 +83,11 @@ export function weakItems(
   { minAttempts = 2, threshold = 0.7, window = 200 } = {},
 ): WeakItem[] {
   const recent = [...attempts].sort((a, b) => b.timestamp - a.timestamp).slice(0, window);
-  return groupStats(recent, answerKey)
+  return groupStats(recent, weakKey)
     .filter((s) => s.attempts >= minAttempts && s.accuracy < threshold)
     .sort((a, b) => a.accuracy - b.accuracy || b.attempts - a.attempts)
     .map((s) => {
-      const [category, answerId] = s.key.split(':') as [Category, string];
-      return { ...s, category, answerId };
+      const [category, difficulty, answerId] = s.key.split('|') as [Category, Difficulty, string];
+      return { ...s, category, difficulty, answerId };
     });
 }

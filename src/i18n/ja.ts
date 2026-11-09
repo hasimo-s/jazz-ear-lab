@@ -3,6 +3,10 @@ export const ja = {
   'app.title': 'Jazz Ear Lab',
   'app.tagline': 'ジャズのためのイヤートレーニング',
 
+  'error.title': '問題が発生しました',
+  'error.body': '画面を表示できませんでした。再読み込みしてください。学習履歴は消えません。',
+  'error.reload': '再読み込み',
+
   'nav.home': 'ホーム',
   'nav.history': '履歴',
   'nav.back': '戻る',
@@ -69,6 +73,8 @@ export const ja = {
   'quiz.synthFallback': 'ピアノ音源を読み込めなかったため、簡易シンセで再生しています',
   'quiz.audioError': '音声を再生できませんでした。ブラウザの音声設定を確認してください',
   'quiz.seed': 'シード {seed}',
+  'quiz.reviewBadge': '苦手の復習: {items}',
+  'quiz.reviewNote': '苦手な項目を多めに出題しています（約7割）',
 
   'explain.chord.symbol': '{symbol}（ルート {root}）',
   'explain.chord.voicing': '鳴らした音（低→高）',
@@ -87,6 +93,8 @@ export const ja = {
   'result.avgTime': '平均回答時間 {seconds}秒',
   'result.avgPlays': '平均再生回数 {count}回',
   'result.again': '同じ設定でもう一度',
+  'result.againReview': 'もう一度復習する',
+  'result.normal': '通常の出題で練習する',
   'result.home': 'ホームへ',
   'result.history': '履歴を見る',
 
@@ -104,6 +112,7 @@ export const ja = {
   'history.clear': '履歴を消去',
   'history.clearConfirm': 'すべての学習履歴を消去しますか？この操作は元に戻せません。',
   'history.cancel': 'キャンセル',
+  'history.clearFailed': '消去できませんでした。ページを再読み込みしてからもう一度お試しください。',
   'history.clearYes': '消去する',
   'history.attempts': '{count}問',
   'history.accuracy': '正答率',
@@ -137,7 +146,7 @@ export const ja = {
   'chord.tip.dim': '短3度を2つ重ねた三和音。♭5 が緊張感を生みます。',
   'chord.tip.aug': '長3度を2つ重ねた三和音。♯5 が浮遊感を生み、どの音も転回すると同じ形になります。',
   'chord.tip.7': 'メジャー三和音＋短7度。3度と♭7度のトライトーンが解決（V→I）を求めます。',
-  'chord.tip.maj7': 'メジャー三和音＋長7度。Iやivで使われる、ジャズらしい柔らかな響き。',
+  'chord.tip.maj7': 'メジャー三和音＋長7度。I や IV で使われる、ジャズらしい柔らかな響き。',
   'chord.tip.m7': 'マイナー三和音＋短7度。II–V–I の II で頻出。',
   'chord.tip.m7b5': 'm7 の5度を半音下げた形。マイナー II–V–I の II（IIø）。',
   'chord.tip.dim7': '短3度を3つ重ねた対称的な響き。パッシング・ディミニッシュとして頻出。',
@@ -168,7 +177,7 @@ export const ja = {
   'progression.tip.ii-bII7-I': 'V7 を、トライトーンを共有する ♭II7 に置き換えた形（裏コード）。ベースが半音で下行してトニックに着地します。',
   'progression.tip.backdoor': '同主短調から借りた IVm7 と ♭VII7 を経てトニックへ。V7 を使わない柔らかい解決（バックドア・ドミナント）。',
   'progression.tip.IV-iv-I': 'IVmaj7 の3度を半音下げて IVm7 にし、哀愁のある響きでトニックへ戻ります（モーダル・インターチェンジ）。',
-  'progression.tip.bvi-bII7-I': '裏コード ♭II7 の前に、その II にあたる ♭VIm7 を置いた形。II–V 全体を半音上（増4度上）にずらしたものです。',
+  'progression.tip.bvi-bII7-I': '裏コード ♭II7 の前に、その II にあたる ♭VIm7 を置いた形。II–V 全体を増4度（トライトーン）ずらした形で（C キーなら A♭m7–D♭7 ＝ G♭ キーの II–V）、♭II7 から半音下のトニックへ解決します。',
 
   'interval.name.m2': '短2度',
   'interval.name.M2': '長2度',
