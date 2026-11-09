@@ -32,6 +32,16 @@ npm run preview
 
 `?seed=12345` を URL に付けると、セッションの問題を再現できます（問題画面の下部に現在のシードを表示）。
 
+## 公開（GitHub Pages）
+
+`.github/workflows/deploy-pages.yml` により、main ブランチを更新するたびにテスト → ビルド → GitHub Pages への公開が自動で行われます。
+
+1. リポジトリの Settings → Pages → 「Build and deployment」の Source を **GitHub Actions** にする
+2. main を更新する（または Actions タブから「Deploy to GitHub Pages」を手動実行）
+3. 公開 URL: `https://<ユーザー名>.github.io/<リポジトリ名>/`
+
+非公開リポジトリで GitHub Pages を使うには GitHub の有料プランが必要です（無料プランでは公開リポジトリのみ）。
+
 ## テスト
 
 ```bash
