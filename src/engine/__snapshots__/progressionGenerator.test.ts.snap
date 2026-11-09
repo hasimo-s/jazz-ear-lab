@@ -1,0 +1,20 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`進行問題: 生成と検証（大量シード） > 既知シードのスナップショット 1`] = `
+{
+  "answer": "ii-bII7-I",
+  "bpm": 84,
+  "choices": [
+    "ii-bII7-I",
+    "ii-V-I",
+    "IV-V-I",
+    "V-I",
+  ],
+  "symbols": [
+    "Dm7",
+    "Db7",
+    "Cmaj7",
+  ],
+  "tonic": "C",
+}
+`;
