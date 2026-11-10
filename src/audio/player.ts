@@ -47,6 +47,10 @@ class PianoPlayer {
   private generation = 0;
 
   private silentAudio: HTMLAudioElement | null = null;
+  /** 復号済みのピアノ音源（作り直しのときに再ダウンロードしないため） */
+  private sampleBuffers: Record<string, AudioBuffer> | null = null;
+  /** 画面が裏に回った・中断されたなどで、次の操作のときに音声を作り直す必要があるか */
+  needsRevive = false;
 
   /**
    * ユーザーの操作（タップ・クリック・キー）の中で同期的に呼ぶ。
@@ -73,6 +77,10 @@ class PianoPlayer {
       }
     } catch {
       /* 対応していない環境では何もしない */
+    }
+    if (this.needsRevive && (this.mode === 'piano' || this.mode === 'synth')) {
+      this.revive();
+      return;
     }
     if (Tone.getContext().state !== 'running') void Tone.start().catch(() => {});
   }
@@ -110,29 +118,74 @@ class PianoPlayer {
     const baseUrl = `${import.meta.env.BASE_URL}samples/piano/`;
     const urls = Object.fromEntries(SAMPLE_NOTES.map((n) => [n, `${n.replace('#', 's')}.mp3`]));
     try {
-      const sampler = await new Promise<Tone.Sampler>((resolve, reject) => {
+      // 復号済みの音（AudioBuffer）を手元に残し、音声の仕組みを作り直すときに再利用する
+      this.sampleBuffers = await new Promise<Record<string, AudioBuffer>>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('sample load timeout')), LOAD_TIMEOUT_MS);
-        const s = new Tone.Sampler({
+        const buffers = new Tone.ToneAudioBuffers({
           urls,
           baseUrl,
-          release: 1.2,
-          onload: () => { clearTimeout(timer); resolve(s); },
+          onload: () => {
+            clearTimeout(timer);
+            try {
+              resolve(Object.fromEntries(SAMPLE_NOTES.map((n) => [n, buffers.get(n).get()!])));
+            } catch (e) {
+              reject(e);
+            }
+          },
           onerror: (err) => { clearTimeout(timer); reject(err); },
-        }).toDestination();
+        });
       });
-      this.instrument = sampler;
+      this.instrument = this.buildInstrument();
       this.setMode('piano');
     } catch (err) {
       console.warn('[audio] piano samples unavailable, falling back to synth', err);
-      const synth = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: 'triangle' },
-        envelope: { attack: 0.005, decay: 0.6, sustain: 0.25, release: 0.8 },
-        volume: -8,
-      }).toDestination();
-      this.instrument = synth as unknown as Instrument;
+      this.sampleBuffers = null;
+      this.instrument = this.buildInstrument();
       this.setMode('synth');
     }
+    this.watchContext();
   }
+
+  /** 現在の AudioContext 上に楽器を作る（ピアノ音源があればピアノ、なければ簡易シンセ） */
+  private buildInstrument(): Instrument {
+    if (this.sampleBuffers) {
+      return new Tone.Sampler({ urls: this.sampleBuffers, release: 1.2 }).toDestination();
+    }
+    return new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.005, decay: 0.6, sustain: 0.25, release: 0.8 },
+      volume: -8,
+    }).toDestination() as unknown as Instrument;
+  }
+
+  /** AudioContext が中断されたら（iOS の 'interrupted' など）、次の操作で作り直す印を付ける */
+  private watchContext() {
+    const ctx = Tone.getContext();
+    ctx.on('statechange', () => {
+      if (ctx === Tone.getContext() && ctx.state !== 'running') this.needsRevive = true;
+    });
+  }
+
+  /**
+   * 音声の仕組み（AudioContext と楽器）を新しく作り直す。ユーザー操作の中で同期的に呼ぶこと。
+   * iOS Safari では、アプリの切り替えや画面ロックの後に AudioContext が
+   * 'interrupted' のままになったり、'running' と報告しながら無音になったりすることがあり、
+   * 再開（resume）だけでは直らない場合があるため。
+   */
+  private revive() {
+    this.needsRevive = false;
+    this.generation++;
+    this.halt();
+    const fresh = new Tone.Context();
+    Tone.setContext(fresh, true); // 古い AudioContext は閉じる（iOS は同時に持てる数に上限がある）
+    void fresh.resume();
+    this.instrument = this.buildInstrument();
+    this.watchContext();
+    this.revivals++;
+  }
+
+  /** 診断・テスト用: 作り直した回数 */
+  revivals = 0;
 
   /**
    * 再生する。実際に鳴らし始めたら true、より新しい再生や stop() に取って代わられたら false を返す。
@@ -190,4 +243,13 @@ if (typeof window !== 'undefined') {
   for (const type of ['pointerdown', 'touchend', 'click', 'keydown'] as const) {
     window.addEventListener(type, onGesture, { capture: true, passive: true });
   }
+  // 画面が裏に回ったら（アプリ切り替え・画面ロック・タブ切り替え）、戻って最初の操作で作り直す
+  const markHidden = () => {
+    if (document.visibilityState === 'hidden') {
+      player.needsRevive = true;
+      player.stop();
+    }
+  };
+  document.addEventListener('visibilitychange', markHidden);
+  window.addEventListener('pagehide', () => { player.needsRevive = true; player.stop(); });
 }

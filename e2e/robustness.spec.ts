@@ -108,3 +108,49 @@ test('音源のクレジット（作者・作品・出典・ライセンス）�
   expect(res.ok()).toBe(true);
   expect(await res.text()).toContain('Creative Commons Attribution 3.0');
 });
+
+test('アプリ切り替え・画面ロックから戻った後も音が出る（音声の仕組みを作り直す）', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __starts: number; __contexts: AudioContext[]; __vis: string };
+    w.__starts = 0;
+    w.__contexts = [];
+    w.__vis = 'visible';
+    Object.defineProperty(document, 'visibilityState', { get: () => w.__vis });
+    const Orig = window.AudioContext;
+    window.AudioContext = class extends Orig {
+      constructor(...args: ConstructorParameters<typeof AudioContext>) {
+        super(...args);
+        w.__contexts.push(this);
+      }
+    } as typeof AudioContext;
+    const origStart = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof origStart>) {
+      if (this.buffer && this.buffer.duration > 1 && this.context.state !== 'closed') w.__starts++;
+      return origStart.apply(this, args);
+    };
+  });
+  await start(page);
+  type W = { __starts: number; __contexts: AudioContext[]; __vis: string };
+  await expect.poll(() => page.evaluate(() => (window as unknown as W).__starts)).toBe(2); // 1問目の2音
+
+  // 画面が裏に回る（iOS ではこの間に AudioContext が中断される）
+  await page.evaluate(async () => {
+    const w = window as unknown as W;
+    w.__vis = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await w.__contexts.at(-1)!.suspend();
+    w.__vis = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  const before = await page.evaluate(() => (window as unknown as W).__starts);
+  await page.getByTestId('play').click(); // 戻って最初の操作
+
+  const info = await page.evaluate(() => {
+    const w = window as unknown as W;
+    return { contexts: w.__contexts.length, states: w.__contexts.map((c) => c.state) };
+  });
+  expect(info.contexts).toBeGreaterThanOrEqual(2); // 作り直された
+  expect(info.states[0]).toBe('closed'); // 古いものは閉じた
+  await expect.poll(() => page.evaluate(() => (window as unknown as W).__contexts.at(-1)!.state)).toBe('running');
+  await expect.poll(() => page.evaluate(() => (window as unknown as W).__starts)).toBe(before + 2); // 新しい仕組みで2音鳴った
+});
